@@ -5,7 +5,7 @@ import (
 	"math"
 )
 
-const SmallestRadius = 1.0
+const SmallestRadius = 0.01
 
 // Radius is a decay function for the radius parameter.  The supported strategies
 // are "exp" and "lin" (any other defaults to "exp").  "exp" is an exponential decay function, "lin" is linear.

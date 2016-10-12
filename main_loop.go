@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	data := data(10, 2, 2, 10.0, 0.0, 1.0, 1)
+	data := data(50, 2, 2, 100.0, 0.0, 1.0, 1)
 
 	//dims, _ := som.GridDims(data, "rectangle")
 	dims := []int{2, 1}
@@ -25,10 +25,8 @@ func main() {
 
 	radius0 := 5.0
 	learningRate0 := 0.5
-	totalIterations := 10
+	totalIterations, _ := data.Dims()
 	for iteration := 0; iteration < totalIterations; iteration++ {
-		fmt.Printf("Iteration %d\n", iteration)
-
 		dataRow := data.RowView(iteration)
 
 		closest := closestMU(dataRow, mUnits)
@@ -36,7 +34,7 @@ func main() {
 
 		radius, _ := som.Radius(iteration, totalIterations, "exp", radius0)
 
-		fmt.Printf("Closest MU: %d, learningRate = %f, radius = %f\n", closest, learningRate, radius)
+		fmt.Printf("%d. Closest MU: %d, learningRate = %f, radius = %f\n", iteration, closest, learningRate, radius)
 
 		for _, rwd := range allRowsInRadius(coords.RowView(closest), radius, coords) {
 			updateMU(rwd.row, dataRow, learningRate, rwd.dist, radius, mUnits)
