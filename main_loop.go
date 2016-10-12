@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"math"
 	"math/rand"
+	"os"
 
 	"github.com/milosgajdos83/gosom/som"
 
@@ -11,19 +13,20 @@ import (
 )
 
 func main() {
-	data := data(50, 2, 2, 100.0, 0.0, 1.0, 1)
+	data := data(500, 2, 5, 100.0, 0.0, 1.0, 3)
 
-	//dims, _ := som.GridDims(data, "rectangle")
-	dims := []int{2, 1}
+	dims, _ := som.GridDims(data, "rectangle")
+	//dims := []int{5, 5}
 	fmt.Printf("Dims: %v\n", dims)
 
-	mUnits, _ := som.RandInit(data, dims)
+	//mUnits, _ := som.RandInit(data, dims)
+	mUnits, _ := som.LinInit(data, dims)
 	printMatrix(mUnits)
 
 	coords, _ := som.GridCoords("rectangle", dims)
 	printMatrix(coords)
 
-	radius0 := 5.0
+	radius0 := 10.0
 	learningRate0 := 0.5
 	totalIterations, _ := data.Dims()
 	for iteration := 0; iteration < totalIterations; iteration++ {
@@ -34,7 +37,7 @@ func main() {
 
 		radius, _ := som.Radius(iteration, totalIterations, "exp", radius0)
 
-		fmt.Printf("%d. Closest MU: %d, learningRate = %f, radius = %f\n", iteration, closest, learningRate, radius)
+		//fmt.Printf("%d. Closest MU: %d, learningRate = %f, radius = %f\n", iteration, closest, learningRate, radius)
 
 		for _, rwd := range allRowsInRadius(coords.RowView(closest), radius, coords) {
 			updateMU(rwd.row, dataRow, learningRate, rwd.dist, radius, mUnits)
@@ -42,6 +45,31 @@ func main() {
 	}
 
 	printMatrix(mUnits)
+	createSVG(coords, mUnits)
+}
+
+func createSVG(coords, mUnits *mat64.Dense) {
+	MUL := 50.0
+	OFF := 10.0
+	svg := "<svg width=\"1000\" height=\"1000\">\n"
+	rows, _ := coords.Dims()
+	scale := func(x float64) float64 { return MUL*x + OFF }
+	for row := 0; row < rows; row++ {
+		coord := coords.RowView(row)
+		svg += fmt.Sprintf("<circle cx=\"%f\" cy=\"%f\" r=\"5\" stroke=\"green\" stroke-width=\"3\" fill=\"yellow\" />\n", scale(coord.At(0, 0)), scale(coord.At(1, 0)))
+		mu := mUnits.RowView(row)
+		for _, rwd := range allRowsInRadius(coord, math.Sqrt2*1.01, coords) {
+			if rwd.dist > 0.0 {
+				coord2 := coords.RowView(rwd.row)
+				otherMu := mUnits.RowView(rwd.row)
+				muDist, _ := som.Distance("euclidean", mu, otherMu)
+				color := int((1 - muDist/math.Sqrt(2*100*100)) * 255)
+				svg += fmt.Sprintf("<line x1=\"%f\" y1=\"%f\" x2=\"%f\" y2=\"%f\" style=\"stroke:rgb(%d,%d,%d);stroke-width:2\" />\n", scale(coord.At(0, 0)), scale(coord.At(1, 0)), scale(coord2.At(0, 0)), scale(coord2.At(1, 0)), color, color, color)
+			}
+		}
+	}
+	svg += `</svg>`
+	ioutil.WriteFile("umatrix.html", []byte(svg), os.ModePerm)
 }
 
 func updateMU(muIndex int, dataRow *mat64.Vector, learningRate, distance, radius float64, mUnits *mat64.Dense) {
@@ -53,7 +81,7 @@ func updateMU(muIndex int, dataRow *mat64.Vector, learningRate, distance, radius
 	if distance > 0.0 {
 		mul *= som.Gaussian(distance, radius)
 	}
-	fmt.Printf("Updating MU %d (distance %f). Mul = %f, diff = %v\n", muIndex, distance, mul, diff)
+	//fmt.Printf("Updating MU %d (distance %f). Mul = %f, diff = %v\n", muIndex, distance, mul, diff)
 	mu.AddScaledVec(mu, mul, diff)
 }
 
