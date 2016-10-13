@@ -46,17 +46,13 @@ func runSom(data *mat64.Dense) (*mat64.Dense, *mat64.Dense, []int) {
 	totalIterations, _ := data.Dims()
 	for iteration := 0; iteration < totalIterations; iteration++ {
 		dataRow := data.RowView(iteration)
-		/*
-			closest := closestMU(dataRow, mUnits)
-			learningRate, _ := som.LearningRate(iteration, totalIterations, "exp", learningRate0)
 
-			radius, _ := som.Radius(iteration, totalIterations, "exp", radius0)
-		*/
+		closest := closestMU(dataRow, mUnits)
+		learningRate, _ := som.LearningRate(iteration, totalIterations, "exp", learningRate0)
+
+		radius, _ := som.Radius(iteration, totalIterations, "exp", radius0)
+
 		//fmt.Printf("%d. Closest MU: %d, learningRate = %f, radius = %f\n", iteration, closest, learningRate, radius)
-		closest := 0
-		learningRate := learningRate0
-		radius := radius0
-
 		for _, rwd := range som.AllRowsInRadius(coords.RowView(closest), radius, coords) {
 			updateMU(rwd.Row, dataRow, learningRate, rwd.Dist, radius, mUnits)
 		}
