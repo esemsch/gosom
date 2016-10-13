@@ -6,6 +6,7 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"time"
 
 	"github.com/milosgajdos83/gosom/som"
 
@@ -13,18 +14,32 @@ import (
 )
 
 func main() {
-	data := data(500, 2, 5, 100.0, 0.0, 1.0, 3)
+	data := data(10000, 2, 5, 1000.0, 0.0, 1.0, 10)
 
-	dims, _ := som.GridDims(data, "rectangle")
-	//dims := []int{5, 5}
+	TIME := time.Now()
+	coords, mUnits, coordsDims := runSom(data)
+	printTimer(TIME)
+	createSVG(coords, mUnits, coordsDims, "Done", false)
+
+	/*rows, cols := mUnits.Dims()
+	repeatedMUnits := mat64.NewDense(rows*10, cols, nil)
+	for i := 0; i < rows*2; i++ {
+		repeatedMUnits.SetRow(i, mUnits.RowView(rand.Int()%rows).RawVector().Data)
+	}
+	c2, mu2, c2dims := runSom(repeatedMUnits)
+	//createSVG(c2, mu2, c2dims)*/
+
+}
+
+func runSom(data *mat64.Dense) (*mat64.Dense, *mat64.Dense, []int) {
+	dims, _ := som.GridDims(data, "hexagon")
 	fmt.Printf("Dims: %v\n", dims)
 
-	//mUnits, _ := som.RandInit(data, dims)
 	mUnits, _ := som.LinInit(data, dims)
-	printMatrix(mUnits)
+	//printMatrix(mUnits)
 
-	coords, _ := som.GridCoords("rectangle", dims)
-	printMatrix(coords)
+	coords, _ := som.GridCoords("hexagon", dims)
+	//printMatrix(coords)
 
 	radius0 := 10.0
 	learningRate0 := 0.5
@@ -42,16 +57,30 @@ func main() {
 		for _, rwd := range allRowsInRadius(coords.RowView(closest), radius, coords) {
 			updateMU(rwd.row, dataRow, learningRate, rwd.dist, radius, mUnits)
 		}
+		/*if iteration%50 == 0 {
+			appnd := iteration != 0
+			createSVG(coords, mUnits, dims, fmt.Sprintf("Iteration %d", iteration), appnd)
+		}*/
 	}
 
-	printMatrix(mUnits)
-	createSVG(coords, mUnits)
+	return coords, mUnits, dims
 }
 
-func createSVG(coords, mUnits *mat64.Dense) {
+func createSVG(coords, mUnits *mat64.Dense, coordsDims []int, title string, appnd bool) {
+	distMat, _ := som.DistanceMx("euclidean", mUnits)
+	distMatRows, distMatCols := distMat.Dims()
+	MAX := 0.0
+	for i := 0; i < distMatRows; i++ {
+		for j := i; j < distMatCols; j++ {
+			if distMat.At(i, j) > MAX {
+				MAX = distMat.At(i, j)
+			}
+		}
+	}
 	MUL := 50.0
 	OFF := 10.0
-	svg := "<svg width=\"1000\" height=\"1000\">\n"
+	svg := fmt.Sprintf("<h1>%s</h1>\n", title)
+	svg += fmt.Sprintf("<svg width=\"%f\" height=\"%f\">\n", float64(coordsDims[1])*MUL+2*OFF, float64(coordsDims[0])*MUL+2*OFF)
 	rows, _ := coords.Dims()
 	scale := func(x float64) float64 { return MUL*x + OFF }
 	for row := 0; row < rows; row++ {
@@ -63,13 +92,24 @@ func createSVG(coords, mUnits *mat64.Dense) {
 				coord2 := coords.RowView(rwd.row)
 				otherMu := mUnits.RowView(rwd.row)
 				muDist, _ := som.Distance("euclidean", mu, otherMu)
-				color := int((1 - muDist/math.Sqrt(2*100*100)) * 255)
+				color := int((1.0 - muDist/MAX) * 255.0)
 				svg += fmt.Sprintf("<line x1=\"%f\" y1=\"%f\" x2=\"%f\" y2=\"%f\" style=\"stroke:rgb(%d,%d,%d);stroke-width:2\" />\n", scale(coord.At(0, 0)), scale(coord.At(1, 0)), scale(coord2.At(0, 0)), scale(coord2.At(1, 0)), color, color, color)
 			}
 		}
 	}
 	svg += `</svg>`
-	ioutil.WriteFile("umatrix.html", []byte(svg), os.ModePerm)
+
+	if appnd {
+		file, err := os.OpenFile("umatrix.html", os.O_APPEND|os.O_RDWR, 0660)
+		if err != nil {
+			ioutil.WriteFile("umatrix.html", []byte(svg), os.ModePerm)
+		} else {
+			file.WriteString(svg)
+			file.Close()
+		}
+	} else {
+		ioutil.WriteFile("umatrix.html", []byte(svg), os.ModePerm)
+	}
 }
 
 func updateMU(muIndex int, dataRow *mat64.Vector, learningRate, distance, radius float64, mUnits *mat64.Dense) {
@@ -155,5 +195,18 @@ func printMatrix(matrix *mat64.Dense) {
 	rows, _ := matrix.Dims()
 	for i := 0; i < rows; i++ {
 		fmt.Println(matrix.RawRowView(i))
+	}
+}
+
+func printTimer(TIME time.Time) {
+	elapsed := float64((time.Now().UnixNano() - TIME.UnixNano()))
+	units := []string{"ns", "us", "ms", "s"}
+	for i, unit := range units {
+		if elapsed > 1000.0 && i < (len(units)-1) {
+			elapsed /= 1000.0
+		} else {
+			fmt.Printf("%f%s\n", elapsed, unit)
+			break
+		}
 	}
 }
