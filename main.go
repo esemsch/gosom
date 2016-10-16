@@ -56,7 +56,7 @@ func parseCliFlags() error {
 	return nil
 }
 
-func main() {
+func main0() {
 	// parse cli flags; exit with non-zero return code on error
 	if err := parseCliFlags(); err != nil {
 		fmt.Printf("Error parsing cli flags: %s\n", err)

@@ -12,12 +12,13 @@ import (
 )
 
 func main() {
-	data := data(10000, 2, 5, 1000.0, 0.0, 1.0, 10)
+	data := data(10000, 200, 5, 100.0, 0.0, 1.0, 10)
 
 	TIME := time.Now()
-	coords, mUnits, coordsDims := runSom(data)
+	//coords, mUnits, coordsDims := runSom(data)
+	coords, mUnits, coordsDims := runSomBatch(data)
 	printTimer(TIME)
-	som.CreateSVG(coords, mUnits, coordsDims, "Done", false)
+	som.CreateSVG(coords, mUnits, coordsDims, "hexagon", "Done", false)
 
 	/*rows, cols := mUnits.Dims()
 	repeatedMUnits := mat64.NewDense(rows*10, cols, nil)
@@ -26,6 +27,55 @@ func main() {
 	}
 	c2, mu2, c2dims := runSom(repeatedMUnits)
 	//CreateSVG(c2, mu2, c2dims)*/
+
+}
+
+func runSomBatch(data *mat64.Dense) (*mat64.Dense, *mat64.Dense, []int) {
+	TIME := time.Now()
+	dims, _ := som.GridDims(data, "hexagon")
+	fmt.Printf("Dims: %v\n", dims)
+
+	mUnits, _ := som.LinInit(data, dims)
+	//printMatrix(mUnits)
+
+	coords, _ := som.GridCoords("hexagon", dims)
+	//printMatrix(coords)
+	printTimer(TIME)
+
+	radius0 := 10.0
+	dataSize, _ := data.Dims()
+	totalIterations := 5 * dataSize
+	batchSize := 200
+	muRows, muCols := mUnits.Dims()
+	for iteration := 0; iteration < totalIterations; iteration += batchSize {
+		sums := make([]*mat64.Vector, muRows)
+		neighborhoods := make([]float64, muRows)
+		for step := 0; step < batchSize; step++ {
+			dataRow := data.RowView((iteration % dataSize) + step)
+			cls := closestMU(dataRow, mUnits)
+			radius, _ := som.Radius(iteration+step, totalIterations, "exp", radius0)
+			neighbors := som.AllRowsInRadius(coords.RowView(cls), radius, coords)
+			for _, neighbor := range neighbors {
+				neighbFunction := som.Gaussian(neighbor.Dist, radius)
+				if sums[neighbor.Row] == nil {
+					sums[neighbor.Row] = mat64.NewVector(muCols, nil)
+					sums[neighbor.Row].CloneVec(dataRow)
+					sums[neighbor.Row].ScaleVec(neighbFunction, sums[neighbor.Row])
+				} else {
+					sums[neighbor.Row].AddScaledVec(sums[neighbor.Row], neighbFunction, dataRow)
+				}
+				neighborhoods[neighbor.Row] += neighbFunction
+			}
+		}
+		for mui := 0; mui < muRows; mui++ {
+			if sums[mui] != nil {
+				sums[mui].ScaleVec(1.0/neighborhoods[mui], sums[mui])
+				mUnits.SetRow(mui, sums[mui].RawVector().Data)
+			}
+		}
+	}
+
+	return coords, mUnits, dims
 
 }
 
