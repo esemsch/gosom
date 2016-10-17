@@ -37,6 +37,7 @@ func runSomBatch(data *mat64.Dense) (*mat64.Dense, *mat64.Dense, []int) {
 	mUnits, _ := som.RandInit(data, dims)
 
 	coords, _ := som.GridCoords("hexagon", dims)
+	coordsDistMatrix, _ := som.DistanceMx("euclidean", coords)
 	printTimer(TIME)
 
 	parallelization := 16
@@ -53,7 +54,7 @@ func runSomBatch(data *mat64.Dense) (*mat64.Dense, *mat64.Dense, []int) {
 		}
 		rc := make(chan batchResults)
 		for ci := 0; ci < parallelization; ci++ {
-			go batch(iteration+ci*batchSize, batchSize, totalIterations, radius0, data, mUnits, coords, rc)
+			go batch(iteration+ci*batchSize, batchSize, totalIterations, radius0, data, mUnits, coordsDistMatrix, rc)
 		}
 
 		sums := make([]*mat64.Vector, muRows)
@@ -91,7 +92,7 @@ func runSomBatch(data *mat64.Dense) (*mat64.Dense, *mat64.Dense, []int) {
 
 }
 
-func batch(iteration, batchSize, totalIterations int, radius0 float64, data, mUnits, coords *mat64.Dense, channel chan batchResults) {
+func batch(iteration, batchSize, totalIterations int, radius0 float64, data, mUnits, coordsDistMatrix *mat64.Dense, channel chan batchResults) {
 	muRows, muCols := mUnits.Dims()
 	dataSize, _ := data.Dims()
 
@@ -102,7 +103,7 @@ func batch(iteration, batchSize, totalIterations int, radius0 float64, data, mUn
 		dataRow := data.RowView((iteration % dataSize) + step)
 		cls := closestMU(dataRow, mUnits)
 		radius, _ := som.Radius(iteration+step, totalIterations, "exp", radius0)
-		neighbors := som.AllRowsInRadius(coords.RowView(cls), radius, coords)
+		neighbors := som.AllRowsInRadiusQuick(cls, radius, coordsDistMatrix)
 		for _, neighbor := range neighbors {
 			neighbFunction := som.Gaussian(neighbor.Dist, radius)
 			if sums[neighbor.Row] == nil {

@@ -20,3 +20,13 @@ func AllRowsInRadius(vec *mat64.Vector, radius float64, matrix *mat64.Dense) []R
 	}
 	return rowsInRadius
 }
+
+func AllRowsInRadiusQuick(selectedRow int, radius float64, distMatrix *mat64.Dense) []RowWithDist {
+	rowsInRadius := []RowWithDist{}
+	for i, dist := range distMatrix.RowView(selectedRow).RawVector().Data {
+		if dist < radius {
+			rowsInRadius = append(rowsInRadius, RowWithDist{Row: i, Dist: dist})
+		}
+	}
+	return rowsInRadius
+}
