@@ -17,8 +17,8 @@ func main() {
 	data := data(100000, 200, 20, 100.0, 0.0, 1.0, 10)
 
 	TIME := time.Now()
-	//coords, mUnits, coordsDims := runSom(data)
-	coords, mUnits, coordsDims := runSomBatch(data)
+	coords, mUnits, coordsDims := runSom(data)
+	//coords, mUnits, coordsDims := runSomBatch(data)
 	printTimer(TIME)
 	som.CreateSVG(coords, mUnits, coordsDims, "hexagon", "Done", false)
 }
@@ -128,7 +128,8 @@ type batchResults struct {
 
 func runSom(data *mat64.Dense) (*mat64.Dense, *mat64.Dense, []int) {
 	TIME := time.Now()
-	dims, _ := som.GridDims(data, "hexagon")
+	//dims, _ := som.GridDims(data, "hexagon")
+	dims := []int{43, 36}
 	fmt.Printf("Dims: %v\n", dims)
 
 	mUnits, _ := som.RandInit(data, dims)
