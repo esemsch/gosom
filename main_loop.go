@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"os"
+	"runtime/pprof"
 	"time"
 
 	"github.com/milosgajdos83/gosom/som"
@@ -12,7 +14,7 @@ import (
 )
 
 func main() {
-	data := data(40000, 20, 20, 100.0, 0.0, 1.0, 10)
+	data := data(100000, 20, 20, 100.0, 0.0, 1.0, 10)
 
 	TIME := time.Now()
 	//coords, mUnits, coordsDims := runSom(data)
@@ -23,9 +25,9 @@ func main() {
 
 func runSomBatch(data *mat64.Dense) (*mat64.Dense, *mat64.Dense, []int) {
 	TIME := time.Now()
-	/*pfile, _ := os.Create("som.prof")
+	pfile, _ := os.Create("som.prof")
 	pprof.StartCPUProfile(pfile)
-	defer pprof.StopCPUProfile()*/
+	defer pprof.StopCPUProfile()
 
 	//dims, _ := som.GridDims(data, "hexagon")
 	dims := []int{43, 36}
