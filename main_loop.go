@@ -12,61 +12,68 @@ import (
 )
 
 func main() {
-	data := data(10000, 200, 5, 100.0, 0.0, 1.0, 10)
+	data := data(40000, 20, 20, 100.0, 0.0, 1.0, 10)
 
 	TIME := time.Now()
 	//coords, mUnits, coordsDims := runSom(data)
 	coords, mUnits, coordsDims := runSomBatch(data)
 	printTimer(TIME)
 	som.CreateSVG(coords, mUnits, coordsDims, "hexagon", "Done", false)
-
-	/*rows, cols := mUnits.Dims()
-	repeatedMUnits := mat64.NewDense(rows*10, cols, nil)
-	for i := 0; i < rows*2; i++ {
-		repeatedMUnits.SetRow(i, mUnits.RowView(rand.Int()%rows).RawVector().Data)
-	}
-	c2, mu2, c2dims := runSom(repeatedMUnits)
-	//CreateSVG(c2, mu2, c2dims)*/
-
 }
 
 func runSomBatch(data *mat64.Dense) (*mat64.Dense, *mat64.Dense, []int) {
 	TIME := time.Now()
-	dims, _ := som.GridDims(data, "hexagon")
+	/*pfile, _ := os.Create("som.prof")
+	pprof.StartCPUProfile(pfile)
+	defer pprof.StopCPUProfile()*/
+
+	//dims, _ := som.GridDims(data, "hexagon")
+	dims := []int{43, 36}
 	fmt.Printf("Dims: %v\n", dims)
 
-	mUnits, _ := som.LinInit(data, dims)
-	//printMatrix(mUnits)
+	mUnits, _ := som.RandInit(data, dims)
 
 	coords, _ := som.GridCoords("hexagon", dims)
-	//printMatrix(coords)
 	printTimer(TIME)
 
+	parallelization := 16
 	radius0 := 10.0
 	dataSize, _ := data.Dims()
-	totalIterations := 5 * dataSize
-	batchSize := 200
-	muRows, muCols := mUnits.Dims()
-	for iteration := 0; iteration < totalIterations; iteration += batchSize {
+	totalIterations := dataSize
+	batchSize := 250
+	muRows, _ := mUnits.Dims()
+
+	for iteration := 0; iteration < totalIterations; iteration += batchSize * parallelization {
+		if iteration%1000 == 0 {
+			fmt.Println("Iteration", iteration)
+			printTimer(TIME)
+		}
+		rc := make(chan batchResults)
+		for ci := 0; ci < parallelization; ci++ {
+			go batch(iteration+ci*batchSize, batchSize, totalIterations, radius0, data, mUnits, coords, rc)
+		}
+
 		sums := make([]*mat64.Vector, muRows)
 		neighborhoods := make([]float64, muRows)
-		for step := 0; step < batchSize; step++ {
-			dataRow := data.RowView((iteration % dataSize) + step)
-			cls := closestMU(dataRow, mUnits)
-			radius, _ := som.Radius(iteration+step, totalIterations, "exp", radius0)
-			neighbors := som.AllRowsInRadius(coords.RowView(cls), radius, coords)
-			for _, neighbor := range neighbors {
-				neighbFunction := som.Gaussian(neighbor.Dist, radius)
-				if sums[neighbor.Row] == nil {
-					sums[neighbor.Row] = mat64.NewVector(muCols, nil)
-					sums[neighbor.Row].CloneVec(dataRow)
-					sums[neighbor.Row].ScaleVec(neighbFunction, sums[neighbor.Row])
-				} else {
-					sums[neighbor.Row].AddScaledVec(sums[neighbor.Row], neighbFunction, dataRow)
+		countDown := parallelization
+		for br := range rc {
+			countDown--
+			for mui := 0; mui < muRows; mui++ {
+				if br.sums[mui] != nil {
+					if sums[mui] != nil {
+						sums[mui].AddVec(sums[mui], br.sums[mui])
+						neighborhoods[mui] += br.neighborhoods[mui]
+					} else {
+						sums[mui] = br.sums[mui]
+						neighborhoods[mui] = br.neighborhoods[mui]
+					}
 				}
-				neighborhoods[neighbor.Row] += neighbFunction
+			}
+			if countDown == 0 {
+				close(rc)
 			}
 		}
+
 		for mui := 0; mui < muRows; mui++ {
 			if sums[mui] != nil {
 				sums[mui].ScaleVec(1.0/neighborhoods[mui], sums[mui])
@@ -79,12 +86,46 @@ func runSomBatch(data *mat64.Dense) (*mat64.Dense, *mat64.Dense, []int) {
 
 }
 
+func batch(iteration, batchSize, totalIterations int, radius0 float64, data, mUnits, coords *mat64.Dense, channel chan batchResults) {
+	muRows, muCols := mUnits.Dims()
+	dataSize, _ := data.Dims()
+
+	sums := make([]*mat64.Vector, muRows)
+	neighborhoods := make([]float64, muRows)
+
+	for step := 0; step < batchSize; step++ {
+		dataRow := data.RowView((iteration % dataSize) + step)
+		cls := closestMU(dataRow, mUnits)
+		radius, _ := som.Radius(iteration+step, totalIterations, "exp", radius0)
+		neighbors := som.AllRowsInRadius(coords.RowView(cls), radius, coords)
+		for _, neighbor := range neighbors {
+			neighbFunction := som.Gaussian(neighbor.Dist, radius)
+			if sums[neighbor.Row] == nil {
+				sums[neighbor.Row] = mat64.NewVector(muCols, nil)
+				sums[neighbor.Row].CloneVec(dataRow)
+				sums[neighbor.Row].ScaleVec(neighbFunction, sums[neighbor.Row])
+			} else {
+				sums[neighbor.Row].AddScaledVec(sums[neighbor.Row], neighbFunction, dataRow)
+			}
+			neighborhoods[neighbor.Row] += neighbFunction
+		}
+	}
+
+	result := batchResults{sums: sums, neighborhoods: neighborhoods}
+	channel <- result
+}
+
+type batchResults struct {
+	sums          []*mat64.Vector
+	neighborhoods []float64
+}
+
 func runSom(data *mat64.Dense) (*mat64.Dense, *mat64.Dense, []int) {
 	TIME := time.Now()
 	dims, _ := som.GridDims(data, "hexagon")
 	fmt.Printf("Dims: %v\n", dims)
 
-	mUnits, _ := som.LinInit(data, dims)
+	mUnits, _ := som.RandInit(data, dims)
 	//printMatrix(mUnits)
 
 	coords, _ := som.GridCoords("hexagon", dims)
@@ -95,6 +136,11 @@ func runSom(data *mat64.Dense) (*mat64.Dense, *mat64.Dense, []int) {
 	learningRate0 := 0.5
 	totalIterations, _ := data.Dims()
 	for iteration := 0; iteration < totalIterations; iteration++ {
+		if iteration%1000 == 0 {
+			fmt.Println("Iteration", iteration)
+			printTimer(TIME)
+		}
+
 		dataRow := data.RowView(iteration)
 
 		closest := closestMU(dataRow, mUnits)
@@ -150,7 +196,7 @@ func data(rows, cols, clusters int, max, min float64, vari float64, randSeed int
 	clusterCentres := make([][]float64, clusters)
 	for i := 0; i < clusters; i++ {
 		clusterCentres[i] = randVector(max, min, cols)
-		fmt.Printf("Cluster %d = %v\n", i, clusterCentres[i])
+		//fmt.Printf("Cluster %d = %v\n", i, clusterCentres[i])
 	}
 
 	for i := 0; i < rows; i++ {
