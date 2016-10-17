@@ -14,7 +14,7 @@ import (
 )
 
 func main() {
-	data := data(100000, 20, 20, 100.0, 0.0, 1.0, 10)
+	data := data(100000, 200, 20, 100.0, 0.0, 1.0, 10)
 
 	TIME := time.Now()
 	//coords, mUnits, coordsDims := runSom(data)
@@ -28,6 +28,7 @@ func runSomBatch(data *mat64.Dense) (*mat64.Dense, *mat64.Dense, []int) {
 	pfile, _ := os.Create("som.prof")
 	pprof.StartCPUProfile(pfile)
 	defer pprof.StopCPUProfile()
+	mFile, _ := os.Create("som.mprof")
 
 	//dims, _ := som.GridDims(data, "hexagon")
 	dims := []int{43, 36}
@@ -82,7 +83,9 @@ func runSomBatch(data *mat64.Dense) (*mat64.Dense, *mat64.Dense, []int) {
 				mUnits.SetRow(mui, sums[mui].RawVector().Data)
 			}
 		}
+		pprof.WriteHeapProfile(mFile)
 	}
+	mFile.Close()
 
 	return coords, mUnits, dims
 
