@@ -11,6 +11,7 @@ import (
 
 func CreateSVG(coords, mUnits *mat64.Dense, coordsDims []int, coordsType string, title string, appnd bool) {
 	distMat, _ := DistanceMx("euclidean", mUnits)
+	coordsDistMat, _ := DistanceMx("euclidean", coords)
 	distMatRows, distMatCols := distMat.Dims()
 	MAX := 0.0
 	for i := 0; i < distMatRows; i++ {
@@ -30,7 +31,7 @@ func CreateSVG(coords, mUnits *mat64.Dense, coordsDims []int, coordsType string,
 		coord := coords.RowView(row)
 		mu := mUnits.RowView(row)
 		avgDistance := 0.0
-		allRowsInRadius := AllRowsInRadius(coord, math.Sqrt2*1.01, coords)
+		allRowsInRadius := AllRowsInRadius(row, math.Sqrt2*1.01, coordsDistMat)
 		for _, rwd := range allRowsInRadius {
 			if rwd.Dist > 0.0 {
 				otherMu := mUnits.RowView(rwd.Row)

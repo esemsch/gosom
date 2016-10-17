@@ -103,7 +103,7 @@ func batch(iteration, batchSize, totalIterations int, radius0 float64, data, mUn
 		dataRow := data.RowView((iteration % dataSize) + step)
 		cls := closestMU(dataRow, mUnits)
 		radius, _ := som.Radius(iteration+step, totalIterations, "exp", radius0)
-		neighbors := som.AllRowsInRadiusQuick(cls, radius, coordsDistMatrix)
+		neighbors := som.AllRowsInRadius(cls, radius, coordsDistMatrix)
 		for _, neighbor := range neighbors {
 			neighbFunction := som.Gaussian(neighbor.Dist, radius)
 			if sums[neighbor.Row] == nil {
@@ -132,10 +132,9 @@ func runSom(data *mat64.Dense) (*mat64.Dense, *mat64.Dense, []int) {
 	fmt.Printf("Dims: %v\n", dims)
 
 	mUnits, _ := som.RandInit(data, dims)
-	//printMatrix(mUnits)
 
 	coords, _ := som.GridCoords("hexagon", dims)
-	//printMatrix(coords)
+	coordsDistMatrix, _ := som.DistanceMx("euclidean", coords)
 	printTimer(TIME)
 
 	radius0 := 10.0
@@ -155,7 +154,7 @@ func runSom(data *mat64.Dense) (*mat64.Dense, *mat64.Dense, []int) {
 		radius, _ := som.Radius(iteration, totalIterations, "exp", radius0)
 
 		//fmt.Printf("%d. Closest MU: %d, learningRate = %f, radius = %f\n", iteration, closest, learningRate, radius)
-		for _, rwd := range som.AllRowsInRadius(coords.RowView(closest), radius, coords) {
+		for _, rwd := range som.AllRowsInRadius(closest, radius, coordsDistMatrix) {
 			updateMU(rwd.Row, dataRow, learningRate, rwd.Dist, radius, mUnits)
 		}
 		/*if iteration%50 == 0 {
