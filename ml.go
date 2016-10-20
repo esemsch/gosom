@@ -14,7 +14,7 @@ import (
 )
 
 func main() {
-	data := data(10000, 5, 2, 100.0, 0.0, 1.0, 10)
+	data := data(100000, 50, 50, 100.0, 0.0, 1.0, 10)
 
 	TIME := time.Now()
 	//algo := "batch"
@@ -63,10 +63,10 @@ func findClusters(mUnits *mat64.Dense, coordsDims []int, uShape string) map[int]
 		}
 	}
 
-	thresholdPercentile := 0.85
+	thresholdPercentile := 0.5
 	sort.Float64s(sortedDist)
 	threshold := sortedDist[int(float64(len(sortedDist))*thresholdPercentile)]
-	fmt.Println(sortedDist)
+	//fmt.Println(sortedDist)
 	fmt.Println("Threshold =", threshold)
 
 	ei := 0

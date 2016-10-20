@@ -221,21 +221,23 @@ func (m *Map) batchTrain(tc *TrainConfig, data *mat64.Dense, iters int) error {
 	if rows < cbRows {
 		batchSize = rows
 	}
+	batchSize = 10
 	// number of worker goroutines
 	workers := runtime.NumCPU()
 	// upper and lower bounds of batch submatrix
 	var rUpper, rLower int
 	// iters is now set to number of data samples
 	for i := 0; i < rows; i += batchSize {
+		println("CCCCCCCC", rows, batchSize)
 		// make data channel a buffered channel
 		rowChan := make(chan *dataRow, workers*4)
 		// batch results channel
 		resChan := make(chan *batchResult, workers)
 		// upper and lower bounds of batch submatrix
-		rUpper = i * batchSize
-		rLower = rUpper + batchSize
-		if rLower > rows {
-			rLower = rows - 1
+		rUpper = i
+		rLower = batchSize
+		if rLower+rUpper > rows {
+			rLower = rows - rUpper
 		}
 		// batch submatrix
 		batch := data.View(rUpper, 0, rLower, cbCols)
@@ -258,6 +260,8 @@ func (m *Map) batchTrain(tc *TrainConfig, data *mat64.Dense, iters int) error {
 			}
 			cbNghs[res.idx] += res.ngh
 		}
+		//fmt.Println(cbVecs)
+		//fmt.Println(cbNghs)
 		// update codebook vectors
 		for i := 0; i < cbRows; i++ {
 			if cbVecs[i] != nil {
@@ -284,6 +288,8 @@ func readDataRows(batch mat64.Matrix, iter, dataIdx int, rowChan chan<- *dataRow
 	// close channel when done
 	close(rowChan)
 }
+
+var cnt int = 0
 
 // processRow processes data rows and sends tehm down the results channel
 func processRow(res chan<- *batchResult, iters int, bc *batchConfig, rows <-chan *dataRow) {
