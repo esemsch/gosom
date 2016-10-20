@@ -39,6 +39,8 @@ type textElement struct {
 	Text    string   `xml:",innerxml"`
 }
 
+var colors = [][]int{{255, 0, 0}, {0, 255, 0}, {0, 0, 255}, {255, 255, 0}, {255, 0, 255}, {0, 255, 255}}
+
 // Creates an SVG representation of the U-Matrix of the given codebook.
 // codebook is the codebook we're displaying the U-Matrix for,
 // coordsDims are the dimensions of the grid,
@@ -97,7 +99,16 @@ func UMatrixSVG(codebook *mat64.Dense, coordsDims []int, uShape string, title st
 			}
 		}
 		avgDistance /= float64(len(allRowsInRadius) - 1)
-		color := int((1.0 - avgDistance/maxDistance) * 255.0)
+		var colorMask []int
+		if clusters[row] == -1 {
+			colorMask = []int{255, 255, 255}
+		} else {
+			colorMask = colors[clusters[row]%len(colors)]
+		}
+		colorMul := (1.0 - avgDistance/maxDistance)
+		r := int(colorMul * float64(colorMask[0]))
+		g := int(colorMul * float64(colorMask[1]))
+		b := int(colorMul * float64(colorMask[2]))
 		polygonCoords := ""
 		x := scale(coord.At(0, 0))
 		y := scale(coord.At(1, 0))
@@ -116,7 +127,7 @@ func UMatrixSVG(codebook *mat64.Dense, coordsDims []int, uShape string, title st
 
 		svgElem.Polygons[row*2] = polygon{
 			Points: []byte(polygonCoords),
-			Style:  fmt.Sprintf("fill:rgb(%d,%d,%d);stroke:black;stroke-width:1", color, color, color),
+			Style:  fmt.Sprintf("fill:rgb(%d,%d,%d);stroke:black;stroke-width:1", r, g, b),
 		}
 
 		svgElem.Polygons[row*2+1] = textElement{
