@@ -13,12 +13,13 @@ import (
 )
 
 func main() {
-	data := data(10000, 5, 20, 100.0, 0.0, 1.0, 10)
+	data := data(1000, 5, 20, 100.0, 0.0, 1.0, 10)
 
 	TIME := time.Now()
 	//algo := "batch"
 	algo := "seq"
-	uShape := "rectangle"
+	uShape := "hexagon"
+	//uShape := "rectangle"
 	mUnits, coordsDims := runSom(data, algo, uShape)
 	printTimer(TIME)
 	file, err := os.Create("umatrix_" + algo + ".html")
@@ -31,29 +32,12 @@ func main() {
 }
 
 type cluster struct {
-	id   int
-	dist float64
-	head node
-}
-
-type node struct {
-	id       int
-	previous *node
+	id int
 }
 
 type edge struct {
 	node1, node2 int
 	dist         float64
-}
-
-type edgeList []edge
-
-func (e edgeList) Len() int           { return len(e) }
-func (e edgeList) Less(i, j int) bool { return e[i].dist <= e[j].dist }
-func (e edgeList) Swap(i, j int) {
-	tmp := e[i]
-	e[i] = e[j]
-	e[j] = tmp
 }
 
 func findClusters(mUnits *mat64.Dense, coordsDims []int, uShape string) map[int]int {
@@ -62,7 +46,7 @@ func findClusters(mUnits *mat64.Dense, coordsDims []int, uShape string) map[int]
 	distMat, _ := som.DistanceMx("euclidean", mUnits)
 
 	clusters := make(map[int]*cluster)
-	edges := edgeList{}
+	edges := []edge{}
 
 	numOfCoords := coordsDims[0] * coordsDims[1]
 	for ni := 0; ni < numOfCoords; ni++ {
@@ -75,14 +59,12 @@ func findClusters(mUnits *mat64.Dense, coordsDims []int, uShape string) map[int]
 		}
 	}
 
-	//sort.Sort(edges)
-
 	ei := 0
 	clusterId := 0
-	threshold := 1.0
+	threshold := 2.0
 	for ei < len(edges) {
 		e := edges[ei]
-		fmt.Printf("%d <-> %d (%f): ", e.node1, e.node2, e.dist)
+		//fmt.Printf("%d <-> %d (%f): ", e.node1, e.node2, e.dist)
 		n1c := clusters[e.node1]
 		n2c := clusters[e.node2]
 		n1done := n1c != nil
@@ -91,55 +73,41 @@ func findClusters(mUnits *mat64.Dense, coordsDims []int, uShape string) map[int]
 		if n1done && n2done {
 			if closeEnough {
 				if n1c.id < n2c.id {
-					fmt.Printf("Merging %d+%d -> %d", n1c.id, n2c.id, n1c.id)
+					//fmt.Printf("Merging %d+%d -> %d", n1c.id, n2c.id, n1c.id)
 					n2c.id = n1c.id
 				} else {
-					fmt.Printf("Merging %d+%d -> %d", n1c.id, n2c.id, n2c.id)
+					//fmt.Printf("Merging %d+%d -> %d", n1c.id, n2c.id, n2c.id)
 					n1c.id = n2c.id
 				}
 			}
 		}
 		if !n1done {
 			if !n2done {
-				c := cluster{
-					id:   clusterId,
-					dist: e.dist,
-					head: node{id: e.node1, previous: nil},
-				}
+				c := cluster{id: clusterId}
 				clusterId += 1
 				clusters[e.node1] = &c
 				n1c = &c
-				fmt.Printf("Created cluster %d. ", n1c.id)
+				//fmt.Printf("Created cluster %d. ", n1c.id)
 			} else if closeEnough {
-				nn := node{id: e.node1, previous: &n2c.head}
-				n2c.dist = e.dist
-				n2c.head = nn
 				clusters[e.node1] = n2c
 				n1c = n2c
-				fmt.Printf("Added to cluster %d. ", n2c.id)
+				//fmt.Printf("Added to cluster %d. ", n2c.id)
 			}
 		}
 		if !n2done {
 			if closeEnough {
-				nn := node{id: e.node2, previous: &n1c.head}
-				n1c.dist = e.dist
-				n1c.head = nn
 				clusters[e.node2] = n1c
-				fmt.Printf("Added to cluster %d. ", n1c.id)
+				//fmt.Printf("Added to cluster %d. ", n1c.id)
 			} else {
-				c := cluster{
-					id:   clusterId,
-					dist: e.dist,
-					head: node{id: e.node1, previous: nil},
-				}
+				c := cluster{id: clusterId}
 				clusterId += 1
 				clusters[e.node2] = &c
 				n2c = &c
-				fmt.Printf("Created cluster %d. ", n2c.id)
+				//fmt.Printf("Created cluster %d. ", n2c.id)
 
 			}
 		}
-		fmt.Printf("\n")
+		//fmt.Printf("\n")
 
 		ei++
 	}
