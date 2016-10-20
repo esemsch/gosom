@@ -5,6 +5,7 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"sort"
 	"time"
 
 	"github.com/milosgajdos83/gosom/som"
@@ -13,7 +14,7 @@ import (
 )
 
 func main() {
-	data := data(1000, 5, 20, 100.0, 0.0, 1.0, 10)
+	data := data(10000, 5, 2, 100.0, 0.0, 1.0, 10)
 
 	TIME := time.Now()
 	//algo := "batch"
@@ -47,6 +48,7 @@ func findClusters(mUnits *mat64.Dense, coordsDims []int, uShape string) map[int]
 
 	clusters := make(map[int]*cluster)
 	edges := []edge{}
+	sortedDist := []float64{}
 
 	numOfCoords := coordsDims[0] * coordsDims[1]
 	for ni := 0; ni < numOfCoords; ni++ {
@@ -54,14 +56,21 @@ func findClusters(mUnits *mat64.Dense, coordsDims []int, uShape string) map[int]
 		neighbors := allRowsInRadius(ni, math.Sqrt2*1.01, coordsDistMat)
 		for _, nghb := range neighbors {
 			if nghb > ni {
-				edges = append(edges, edge{node1: ni, node2: nghb, dist: distMat.At(ni, nghb)})
+				dist := distMat.At(ni, nghb)
+				edges = append(edges, edge{node1: ni, node2: nghb, dist: dist})
+				sortedDist = append(sortedDist, dist)
 			}
 		}
 	}
 
+	thresholdPercentile := 0.85
+	sort.Float64s(sortedDist)
+	threshold := sortedDist[int(float64(len(sortedDist))*thresholdPercentile)]
+	fmt.Println(sortedDist)
+	fmt.Println("Threshold =", threshold)
+
 	ei := 0
 	clusterId := 0
-	threshold := 2.0
 	for ei < len(edges) {
 		e := edges[ei]
 		//fmt.Printf("%d <-> %d (%f): ", e.node1, e.node2, e.dist)
