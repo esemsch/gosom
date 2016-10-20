@@ -2,7 +2,10 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"math/rand"
+	"os"
+	"sort"
 	"time"
 
 	"github.com/milosgajdos83/gosom/som"
@@ -11,15 +14,127 @@ import (
 )
 
 func main() {
-	data := data(1000, 200, 20, 100.0, 0.0, 1.0, 10)
+	data := data(10000, 5, 5, 100.0, 0.0, 1.0, 10)
 
 	TIME := time.Now()
-	coords, mUnits, coordsDims := runSom(data)
+	//algo := "batch"
+	algo := "seq"
+	uShape := "hexagon"
+	mUnits, coordsDims := runSom(data, algo)
 	printTimer(TIME)
-	som.CreateSVG(coords, mUnits, coordsDims, "hexagon", "Done", false, "umatrix.html")
+	file, err := os.Create("umatrix_" + algo + ".html")
+	if err != nil {
+		panic(err)
+	}
+	clusters := findClusters(mUnits, coordsDims, uShape)
+	som.UMatrixSVG(mUnits, coordsDims, uShape, algo, file, clusters)
+	file.Close()
 }
 
-func runSom(data *mat64.Dense) (*mat64.Dense, *mat64.Dense, []int) {
+type cluster struct {
+	id   int
+	dist float64
+	head node
+}
+
+type node struct {
+	id       int
+	previous *node
+}
+
+type edge struct {
+	node1, node2 int
+	dist         float64
+}
+
+type edgeList []edge
+
+func (e edgeList) Len() int           { return len(e) }
+func (e edgeList) Less(i, j int) bool { return e[i].dist <= e[j].dist }
+func (e edgeList) Swap(i, j int) {
+	tmp := e[i]
+	e[i] = e[j]
+	e[j] = tmp
+}
+
+func findClusters(mUnits *mat64.Dense, coordsDims []int, uShape string) map[int]int {
+	coords, _ := som.GridCoords(uShape, coordsDims)
+	coordsDistMat, _ := som.DistanceMx("euclidean", coords)
+	distMat, _ := som.DistanceMx("euclidean", mUnits)
+
+	clusters := make(map[int]*cluster)
+	edges := edgeList{}
+
+	numOfCoords := coordsDims[0] * coordsDims[1]
+	for ni := 0; ni < numOfCoords; ni++ {
+		clusters[ni] = nil
+		neighbors := allRowsInRadius(ni, math.Sqrt2*1.01, coordsDistMat)
+		for _, nghb := range neighbors {
+			if nghb > ni {
+				edges = append(edges, edge{node1: ni, node2: nghb, dist: distMat.At(ni, nghb)})
+			}
+		}
+	}
+
+	sort.Sort(edges)
+
+	ei := 0
+	clusterId := 0
+	for ei < len(edges) {
+		e := edges[ei]
+		n1c := clusters[e.node1]
+		n2c := clusters[e.node2]
+		n1done := n1c != nil
+		n2done := n2c != nil
+		if !n1done {
+			if !n2done {
+				c := cluster{
+					id:   clusterId,
+					dist: e.dist,
+					head: node{id: e.node1, previous: nil},
+				}
+				clusterId += 1
+				clusters[e.node1] = &c
+				n1c = &c
+			} else {
+				nn := node{id: e.node1, previous: &n2c.head}
+				n2c.dist = e.dist
+				n2c.head = nn
+				clusters[e.node1] = n2c
+				n1c = n2c
+			}
+		}
+		if !n2done {
+			nn := node{id: e.node2, previous: &n1c.head}
+			n1c.dist = e.dist
+			n1c.head = nn
+			clusters[e.node2] = n1c
+		}
+
+		ei++
+	}
+
+	println("units:", numOfCoords, "clusters:", clusterId)
+
+	retVal := make(map[int]int)
+	for k, v := range clusters {
+		retVal[k] = v.id
+	}
+
+	return retVal
+}
+
+func allRowsInRadius(selectedRow int, radius float64, distMatrix *mat64.Dense) []int {
+	rowsInRadius := []int{}
+	for i, dist := range distMatrix.RowView(selectedRow).RawVector().Data {
+		if dist < radius {
+			rowsInRadius = append(rowsInRadius, i)
+		}
+	}
+	return rowsInRadius
+}
+
+func runSom(data *mat64.Dense, algo string) (*mat64.Dense, []int) {
 	TIME := time.Now()
 
 	totalIterations, _ := data.Dims()
@@ -34,7 +149,7 @@ func runSom(data *mat64.Dense) (*mat64.Dense, *mat64.Dense, []int) {
 	smap, _ := som.NewMap(mConfig, data)
 
 	tConfig := &som.TrainConfig{
-		Method:   "seq",
+		Method:   algo,
 		Radius:   10.0,
 		RDecay:   "exp",
 		NeighbFn: "gaussian",
@@ -45,8 +160,7 @@ func runSom(data *mat64.Dense) (*mat64.Dense, *mat64.Dense, []int) {
 	smap.Train(tConfig, data, totalIterations)
 	printTimer(TIME)
 
-	coords, _ := som.GridCoords(mConfig.UShape, mConfig.Dims)
-	return coords, smap.Codebook(), mConfig.Dims
+	return smap.Codebook(), mConfig.Dims
 }
 
 func data(rows, cols, clusters int, max, min float64, vari float64, randSeed int64) *mat64.Dense {

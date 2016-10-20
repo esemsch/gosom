@@ -213,10 +213,10 @@ type batchResult struct {
 func (m *Map) batchTrain(tc *TrainConfig, data *mat64.Dense, iters int) error {
 	// number of iterations is set to number of data samples
 	cbRows, _ := m.codebook.Dims()
-	rows, _ := data.Dims()
-	iters = rows
+	iters = 100
 	// number of worker goroutines
 	workers := runtime.NumCPU()
+	println(workers)
 	// perform iters number of learning iterations
 	for i := 0; i < iters; i++ {
 		// make data channel a buffered channel
